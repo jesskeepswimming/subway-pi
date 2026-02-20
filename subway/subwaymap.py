@@ -14,8 +14,13 @@ from displayled import clear_leds
 led1 = LED(17)
 led2 = LED(27)
 led3 = LED(22)
+led4 = LED(5)
+led5 = LED(6)
+led6 = LED(13)
 
-allLeds = [led1.pin.number, led2.pin.number, led3.pin.number]
+all_leds = [led1.pin.number, led2.pin.number, led3.pin.number, led4.pin.number, led5.pin.number, led6.pin.number]
+
+all_routes = ["N", "R", "W", "4", "5", "6"]
 
 stop_42nd_S = "631S"
 stop_59th_S = "629S"
@@ -31,7 +36,10 @@ my_stops = [stop_59th_S, stop_59th_N]
 stop_to_led_map = {
     stop_42nd_S: led3.pin.number,
     stop_59th_S: led2.pin.number,
-    stop_88th_S: led1.pin.number
+    stop_88th_S: led1.pin.number,
+    stop_5Av_N: led4.pin.number,
+    stop_59th_N: led5.pin.number,
+    stop_queensboro_N: led6.pin.number
 }
 
 direction_text_map = {'S': "Downtown", 'N': "Queens"}
@@ -52,46 +60,34 @@ def get_subway_data(endpoint):
         print(f"Failed to fetch subway data: {e}")
         return None
 
-def parse_gtfs(data):
-    """Parse GTFS-realtime protobuf data and print sorted list of (route id, direction, minutes until arrival) for each trip update at Lexington Av/59 St (629S)."""
-    feed = gtfs_realtime_pb2.FeedMessage()
-    feed.ParseFromString(data)
-    
+def parse_gtfs_entities(entities):
     arrivals = []
     current_stops = []
 
-    for entity in feed.entity:
+    for entity in entities:
         if entity.HasField('trip_update'):
             trip = entity.trip_update.trip
             route_id = trip.route_id
             for stu in entity.trip_update.stop_time_update:
                 arrival = stu.arrival.time if stu.HasField('arrival') else None
                 direction = stu.stop_id[-1]
-               
                 if arrival:
                     now = datetime.datetime.now(datetime.timezone.utc)
                     arrival_dt = datetime.datetime.fromtimestamp(arrival, tz=datetime.timezone.utc)
                     minutes_until_arrival = int((arrival_dt - now).total_seconds() // 60)
-                   
-                    if stu.stop_id in my_stops and minutes_until_arrival > 0:
+                    if stu.stop_id in my_stops and minutes_until_arrival >= 0:
                         arrivals.append((route_id, direction, stu.stop_id, minutes_until_arrival))
-                    
-                    elif minutes_until_arrival == 0 and stu.stop_id in all_stops:
+                    elif minutes_until_arrival == 0 and stu.stop_id in all_stops and route_id in all_routes:
                         current_stops.append(stu.stop_id)
-                
-    print("currentStops", current_stops)
 
-    clear_leds(allLeds)
+    print("currentStops", current_stops)
+    clear_leds(all_leds)
     for stop in current_stops:
-        if stop == stop_42nd_S:
-            turn_on_led(led3.pin.number)
-        elif stop == stop_59th_S:
-            turn_on_led(led2.pin.number)
-        elif stop == stop_88th_S:
-            turn_on_led(led1.pin.number)
+        if stop in stop_to_led_map:
+            turn_on_led(stop_to_led_map[stop])
 
     arrivals.sort(key=lambda x: x[3])
-    for idx, (route_id, direction, stop_id, minutes) in enumerate(arrivals[:4]):
+    for idx, (route_id, direction, _, minutes) in enumerate(arrivals[:4]):
         clear_lcd()
         direction = direction_text_map.get(direction, 'N/A')
         message1 = f"{idx + 1}. ({route_id}) {direction}"
@@ -100,34 +96,33 @@ def parse_gtfs(data):
         print(message1, message2)
         time.sleep(5)
 
-
 def main():    
-  
-    init_leds(allLeds)
+    init_leds(all_leds)
     init_lcd()
-
     try:
         while True:
-            data = get_subway_data(subway_endpoint_1234567S)
-            if data:
-                parse_gtfs(data)
-                time.sleep(5)
+            data1 = get_subway_data(subway_endpoint_1234567S)
             data2 = get_subway_data(subway_endpoint_NRWQ)
-            if data2:
-                parse_gtfs(data2)
+            if data1 and data2:
+                feed1 = gtfs_realtime_pb2.FeedMessage()
+                feed1.ParseFromString(data1)
+                feed2 = gtfs_realtime_pb2.FeedMessage()
+                feed2.ParseFromString(data2)
+                combined_entities = list(feed1.entity) + list(feed2.entity)
+                parse_gtfs_entities(combined_entities)
                 time.sleep(5)
-
+            else:
+                print("Failed to fetch one or both feeds.")
+                time.sleep(5)
     except KeyboardInterrupt:
         print("\nProgram interrupted by user")
         clear_lcd()
-        clear_leds(allLeds)
-
+        clear_leds(all_leds)
         return 0
     except Exception as e:
         print(f"An error occurred: {e}")
         clear_lcd()
-        clear_leds(allLeds)
-
+        clear_leds(all_leds)
         return 1
 
 if __name__ == "__main__":
