@@ -20,7 +20,7 @@ led6 = LED(13)
 
 all_leds = [led1.pin.number, led2.pin.number, led3.pin.number, led4.pin.number, led5.pin.number, led6.pin.number]
 
-all_routes = ["N", "R", "W", "4", "5", "6"]
+all_routes = ['N', 'R', 'W', '4', '5', '6', '6X']
 
 stop_42nd_S = "631S"
 stop_59th_S = "629S"
@@ -75,9 +75,10 @@ def parse_gtfs_entities(entities):
                     now = datetime.datetime.now(datetime.timezone.utc)
                     arrival_dt = datetime.datetime.fromtimestamp(arrival, tz=datetime.timezone.utc)
                     minutes_until_arrival = int((arrival_dt - now).total_seconds() // 60)
-                    if stu.stop_id in my_stops and minutes_until_arrival >= 0:
+                    if stu.stop_id in my_stops and route_id in all_routes and minutes_until_arrival >= 0:
                         arrivals.append((route_id, direction, stu.stop_id, minutes_until_arrival))
-                    elif minutes_until_arrival == 0 and stu.stop_id in all_stops and route_id in all_routes:
+                    
+                    if minutes_until_arrival == 0 and stu.stop_id in all_stops and route_id in all_routes:
                         current_stops.append(stu.stop_id)
 
     print("currentStops", current_stops)
@@ -94,7 +95,7 @@ def parse_gtfs_entities(entities):
         message2 = f"{minutes} min"
         display_static_message(message1, message2)
         print(message1, message2)
-        time.sleep(5)
+        time.sleep(2)
 
 def main():    
     init_leds(all_leds)
